@@ -2,13 +2,16 @@ import { performance } from "node:perf_hooks";
 
 const baseUrl = process.env.API_URL || "http://localhost:4000";
 const concurrency = Number(process.env.CONCURRENT || 100);
+const runId = process.env.RUN_ID || `demo-load-${Date.now()}`;
 let next = 0;
 let duplicates = 0;
 let errors = 0;
 let created = 0;
 
 const keys = Array.from({ length: 100000 }, (_, i) =>
-  i < 80000 ? `unique-${i}` : `unique-${i - 80000}`
+  i < 80000
+    ? `${runId}-unique-${i}`
+    : `${runId}-unique-${i - 80000}`
 );
 
 const start = performance.now();
@@ -40,6 +43,7 @@ async function worker() {
 await Promise.all(Array.from({ length: concurrency }, worker));
 const seconds = (performance.now() - start) / 1000;
 console.log(JSON.stringify({
+  runId,
   requests: 100000,
   stored: created,
   duplicates,

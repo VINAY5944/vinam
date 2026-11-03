@@ -1,3 +1,11 @@
+SET 'execution.checkpointing.mode' = 'EXACTLY_ONCE';
+SET 'execution.checkpointing.interval' = '10s';
+SET 'state.checkpoints.dir' = 'file:///tmp/flink/checkpoints';
+
+ADD JAR 'file:///opt/flink/lib/kafka.jar';
+ADD JAR 'file:///opt/flink/lib/jdbc.jar';
+ADD JAR 'file:///opt/flink/lib/postgres.jar';
+
 CREATE TABLE submission_events (
   event_id STRING,
   form_id STRING,

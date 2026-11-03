@@ -18,6 +18,14 @@ services:
     volumes: ["redis_data:/data"]
     command: redis-server --appendonly yes
 
+  adminer:
+    image: adminer
+    restart: unless-stopped
+    ports: ["8085:8080"]
+    depends_on: [postgres]
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+
   redpanda:
     image: redpandadata/redpanda:v24.1.6
     command: redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M --node-id 0 --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092 --advertise-kafka-addr internal://redpanda:29092,external://localhost:9092
@@ -47,10 +55,10 @@ services:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
         state.backend: filesystem
-        state.checkpoints.dir: file:///flink/checkpoints
+        state.checkpoints.dir: file:///tmp/flink/checkpoints
         execution.checkpointing.interval: 10000
         execution.checkpointing.mode: EXACTLY_ONCE
-    volumes: ["flink_checkpoints:/flink/checkpoints", "flink_lib:/opt/flink/lib", "./flink:/opt/flink/jobs"]
+    volumes: ["flink_lib:/opt/flink/lib", "./flink:/opt/flink/jobs"]
 
   taskmanager:
     image: flink:1.18.1-scala_2.12-java17
@@ -62,8 +70,8 @@ services:
         jobmanager.rpc.address: jobmanager
         taskmanager.numberOfTaskSlots: 2
         state.backend: filesystem
-        state.checkpoints.dir: file:///flink/checkpoints
-    volumes: ["flink_checkpoints:/flink/checkpoints", "flink_lib:/opt/flink/lib", "./flink:/opt/flink/jobs"]
+        state.checkpoints.dir: file:///tmp/flink/checkpoints
+    volumes: ["flink_lib:/opt/flink/lib", "./flink:/opt/flink/jobs"]
 
   flink-submit:
     image: flink:1.18.1-scala_2.12-java17
