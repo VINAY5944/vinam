@@ -1,0 +1,10 @@
+@"
+node_modules/
+.env
+.env.*
+!.env.example
+logs/
+*.log
+dist/
+coverage/
+"@ | Out-File -Encoding utf8 .gitignore

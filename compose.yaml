@@ -1,0 +1,82 @@
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vinam
+      POSTGRES_PASSWORD: vinam123
+      POSTGRES_DB: vinam_db
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports: ["6379:6379"]
+    volumes: ["redis_data:/data"]
+    command: redis-server --appendonly yes
+
+  redpanda:
+    image: redpandadata/redpanda:v24.1.6
+    command: redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M --node-id 0 --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092 --advertise-kafka-addr internal://redpanda:29092,external://localhost:9092
+    ports: ["9092:9092", "9644:9644"]
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on: [postgres, redis, redpanda]
+    environment:
+      PORT: 4000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: vinam_db
+      DB_USER: vinam
+      DB_PASSWORD: vinam123
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: redpanda:29092
+    ports: ["4000:4000"]
+    command: sh -c "npm run db:migrate; npm start"
+
+  jobmanager:
+    image: flink:1.18.1-scala_2.12-java17
+    command: jobmanager
+    ports: ["8081:8081"]
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        state.backend: filesystem
+        state.checkpoints.dir: file:///flink/checkpoints
+        execution.checkpointing.interval: 10000
+        execution.checkpointing.mode: EXACTLY_ONCE
+    volumes: ["flink_checkpoints:/flink/checkpoints", "flink_lib:/opt/flink/lib", "./flink:/opt/flink/jobs"]
+
+  taskmanager:
+    image: flink:1.18.1-scala_2.12-java17
+    depends_on: [jobmanager]
+    command: taskmanager
+    scale: 1
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        state.backend: filesystem
+        state.checkpoints.dir: file:///flink/checkpoints
+    volumes: ["flink_checkpoints:/flink/checkpoints", "flink_lib:/opt/flink/lib", "./flink:/opt/flink/jobs"]
+
+  flink-submit:
+    image: flink:1.18.1-scala_2.12-java17
+    depends_on: [jobmanager, taskmanager, redpanda, postgres]
+    entrypoint: ["/bin/bash", "-c"]
+    command: ["apt-get update >/dev/null && apt-get install -y curl >/dev/null && /opt/flink/jobs/submit-job.sh"]
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+    volumes: ["flink_lib:/opt/flink/lib", "./flink:/opt/flink/jobs"]
+
+volumes:
+  postgres_data:
+  redis_data:
+  flink_checkpoints:
+  flink_lib:
